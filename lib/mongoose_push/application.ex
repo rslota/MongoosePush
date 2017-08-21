@@ -8,11 +8,10 @@ defmodule MongoosePush.Application do
 
   @spec start(atom, list(term)) :: {:ok, pid}
   def start(_type, _args) do
-    # Logger setup
-    loglevel = Confex.get(:mongoose_push, :loglevel, :info)
-    set_loglevel(loglevel)
-
     # Define workers and child supervisors to be supervised
+    loglevel = Confex.get_env(:mongoose_push, :loglevel, :info)
+    Logger.configure(level: loglevel)
+
     children = List.flatten(workers())
 
     # See http://elixir-lang.org/docs/stable/elixir/Supervisor.html
@@ -25,9 +24,9 @@ defmodule MongoosePush.Application do
   def pools_config(service) do
     enabled_opt = String.to_atom(~s"#{service}_enabled")
     pools_config =
-      case Confex.get(:mongoose_push, enabled_opt, true) do
+      case Confex.get_env(:mongoose_push, enabled_opt, true) do
         false ->  []
-        true  ->  Confex.get_map(:mongoose_push, service)
+        true  ->  Confex.fetch_env!(:mongoose_push, service)
       end
 
     Enum.map(pools_config, fn({pool_name, pool_config}) ->
@@ -83,18 +82,5 @@ defmodule MongoosePush.Application do
   end
 
   defp mode(config), do: config[:mode] || :prod
-
-  defp set_loglevel(level) do
-    Logger.configure(level: level)
-
-    # This project uses some Erlang deps, so lager may be present
-    case Code.ensure_loaded?(:lager) do
-      true ->
-        :lager.set_loglevel(:lager_file_backend, level)
-        :lager.set_loglevel(:lager_console_backend, level)
-      false ->
-        :ok
-    end
-  end
 
 end

@@ -31,7 +31,7 @@ defmodule MongoosePush.Mixfile do
      {:httpoison, "~> 0.12.0"},
      {:maru_swagger, github: "elixir-maru/maru_swagger"},
      {:distillery, "~> 1.3"},
-     {:confex, "~> 1.4", override: true},
+     {:confex, "~> 3.2", override: true},
      {:mix_docker, "~> 0.3"},
      { :uuid, "~> 1.1" },
 
