@@ -12,12 +12,16 @@ defmodule MongoosePush.Service.APNS do
   alias MongoosePush.Pools
   alias MongoosePush.Service.APNS.Certificate
 
+  @priority_mapping %{normal: "5", high: "10"}
+
   @spec prepare_notification(String.t(), MongoosePush.request) ::
     Service.notification
   def prepare_notification(device_id, %{alert: nil} = request) do
     # Setup silent notification
     %{"content-available" => 1}
     |> Notification.new(device_id, request[:topic], request[:data])
+    |> maybe_mutable_content(request[:mutable_content])
+    |> Notification.put_priority(@priority_mapping[request[:priority]])
   end
   def prepare_notification(device_id, request) do
     # Setup non-silent notification
@@ -28,9 +32,12 @@ defmodule MongoosePush.Service.APNS do
         "body" => alert.body
       },
       "badge" => alert[:badge],
-      "category" => alert[:click_action]
+      "category" => alert[:click_action],
+      "sound" => alert[:sound]
     }
     |> Notification.new(device_id, request[:topic], request[:data])
+    |> maybe_mutable_content(request[:mutable_content])
+    |> Notification.put_priority(@priority_mapping[request[:priority]])
   end
 
   @spec push(Service.notification(), String.t(), atom(), Service.options()) ::
@@ -51,6 +58,7 @@ defmodule MongoosePush.Service.APNS do
     pool_config =
       pool_config
       |> construct_apns_endpoint_options()
+      |> announce_subject()
       |> maybe_setup_default_apns_topic()
 
     Enum.map(1..pool_size, fn(id) ->
@@ -69,6 +77,19 @@ defmodule MongoosePush.Service.APNS do
     Enum.into([{new_key, config[:endpoint]}], config)
   end
 
+  defp announce_subject(config) do
+    try do
+      subject = Certificate.extract_subject!(config[:cert])
+      Logger.info(~s"Using APNS certificate '#{subject}' for '#{config[:mode]}' connection pool")
+    catch
+      _, reason ->
+        Logger.warn(~s"Unable to extract APNS certificate's subject from the #{config[:mode]} " <>
+                      "certificate due to: #{inspect reason}")
+    end
+
+    config
+  end
+
   defp maybe_setup_default_apns_topic(config) do
     try do
       # There are loooots of things that may went wrong with this. Notably, dev certificates
@@ -79,10 +100,10 @@ defmodule MongoosePush.Service.APNS do
         nil ->
           all_topics = Certificate.extract_topics!(config[:cert])
           default_topic = all_topics[:topic]
-          Logger.debug(~s"Successfully extracted default APNS topic: #{default_topic}")
+          Logger.info(~s"Successfully extracted default APNS topic: #{default_topic}")
           Enum.into([default_topic: default_topic], config)
         default_topic ->
-          Logger.debug(~s"Using user-defined default APNS topic: #{default_topic}")
+          Logger.info(~s"Using user-defined default APNS topic: #{default_topic}")
           config
       end
     catch
@@ -92,5 +113,8 @@ defmodule MongoosePush.Service.APNS do
         config
     end
   end
+
+  defp maybe_mutable_content(notification, true), do: Notification.put_mutable_content(notification)
+  defp maybe_mutable_content(notification, _),    do: notification
 
 end

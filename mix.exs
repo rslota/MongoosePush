@@ -4,8 +4,8 @@ defmodule MongoosePush.Mixfile do
   def project do
     [
       app: :mongoose_push,
-      version: "0.1.0",
-      elixir: "~> 1.4",
+      version: "1.0.0",
+      elixir: "~> 1.5",
       build_embedded: Mix.env == :prod,
       start_permanent: Mix.env == :prod,
       deps: deps(),
@@ -19,33 +19,39 @@ defmodule MongoosePush.Mixfile do
 
   def application do
     # Specify extra applications you'll use from Erlang/Elixir
-    [extra_applications: [:logger, :runtime_tools],
+    [extra_applications: [:lager, :logger, :runtime_tools],
      mod: {MongoosePush.Application, []}]
   end
 
   defp deps do
     [
-     {:pigeon, github: "rslota/pigeon"},
-     {:maru, "~> 0.12", override: true},
+     {:pigeon, github: "rslota/pigeon", ref: "f85b74e"},
+     {:chatterbox, github: "rslota/chatterbox", ref: "4a8abc9", override: true},
+
+     {:maru,  github: "rslota/maru", ref: "54fc038", override: true},
+     {:cowboy,  "~> 2.3", override: true},
+     {:jason, "~> 1.0"},
+
      {:poison, "~> 3.0"},
-     {:httpoison, "~> 0.12.0"},
      {:maru_swagger, github: "elixir-maru/maru_swagger"},
-     {:distillery, "~> 1.3"},
-     {:confex, "~> 1.4", override: true},
-     {:mix_docker, "~> 0.3"},
-     { :uuid, "~> 1.1" },
+     {:distillery, "~> 1.5"},
+     {:confex, "~> 3.2", override: true},
+     {:mix_docker, "~> 0.5"},
+     {:uuid, "~> 1.1"},
+     {:lager, ">= 3.2.1", override: true},
+     {:logger_lager_backend, "~> 0.1.0"},
 
      # Just overrides to make elixometer compile...
-     {:setup, github: "uwiger/setup", tag: "1.8.0", override: true, manager: :rebar},
-     {:edown, github: "uwiger/edown", tag: "0.8", override: true},
-     {:lager, ">= 3.2.1", override: true},
-     {:exometer_core, github: "PSPDFKit-labs/exometer_core", override: true},
-     {:exometer, github: "PSPDFKit-labs/exometer"},
-     {:elixometer, github: "pinterest/elixometer"},
+     {:exometer_core, github: "esl/exometer_core", override: true},
+     {:exometer_report_graphite, github: "esl/exometer_report_graphite"},
+     {:elixometer, github: "esl/elixometer"},
 
      # Below only :dev / :test deps
-     {:chatterbox, github: "rslota/chatterbox", tag: "75cba84", override: true},
-     {:mock, "~> 0.2.0", only: :test},
+     {:mock, "~> 0.3", only: :test},
+     # Until eproxus/meck  #fcc551e3 is in a release, we need to use master version
+     # to include this commit (fixes mocking in Erlang 20.x + Elixir 1.5.x)
+     {:meck, github: "eproxus/meck", override: true},
+     {:httpoison, "~> 0.13"},
      {:excoveralls, "~> 0.7", only: :test},
      {:dialyxir, "~> 0.4", only: [:dev, :test], runtime: false},
      {:credo, "~> 0.5", only: [:dev, :test]},

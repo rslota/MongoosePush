@@ -12,17 +12,17 @@ notification** to `FCM` (Firebase Cloud Messaging) and/or
 
 #### Running from DockerHub
 
-We provide already builded MongoosePush images. If you just want to use it, then all you need is `docker`, `FCM` app token and/or `APNS` app certificates.
-In case of certificates you need setup the following directory structure:
+We provide already built MongoosePush images. If you just want to use it, then all you need is `docker`, `FCM` app token and/or `APNS` app certificates.
+In case of certificates you need to setup the following directory structure:
 * priv/
     * ssl/
       * rest_cert.pem - The REST endpoint certificate
-      * rest_key.pem - private key for the REST endpoint certificate
+      * rest_key.pem - private key for the REST endpoint certificate (has to be unencrypted)
     * apns/
       * prod_cert.pem - Production APNS app certificate
-      * prod_key.pem - Production APNS app certificate's private key
+      * prod_key.pem - Production APNS app certificate's private key (has to be unencrypted)
       * dev_cert.pem - Development APNS app certificate
-      * dev_key.pem - Development APNS app certificate's private key
+      * dev_key.pem - Development APNS app certificate's private key (has to be unencrypted)
 
 Assuming that your `FCM` app token is "MY_FCM_SECRET_TOKEN" and you have the `priv` directory with all ceriticates in current directory, then you may start MongoosePush with the following command:
 
@@ -48,12 +48,12 @@ As a result of this command you get access to `mongoose_push:release` docker ima
 docker run -it --rm mongoose_push:release foreground
 ```
 
-Docker image that you have just builded, exposes the port `8443` for the REST API of
+Docker image that you have just built, exposes the port `8443` for the REST API of
 MongoosePush. Also there is a `VOLUME` for path */opt/app* where the whole MongoosePush release is stored. This volume will be handy for injecting `APNS` and REST API certificates.
 
 #### Configuring
 
-The docker image of MongoosePush contains common, basic configuration that is generated from `config/prod.exs`. All useful options may be overridden via system environmental variables. Below theres a full list of the variables you may set while running docker (via `docker -e` switch), but if theres something you feel, you need to change other then that, then you need to prepare your own `config/prod.exs` before image build.
+The docker image of MongoosePush contains common, basic configuration that is generated from `config/prod.exs`. All useful options may be overridden via system environmental variables. Below there's a full list of the variables you may set while running docker (via `docker -e` switch), but if there's something you feel, you need to change other then that, then you need to prepare your own `config/prod.exs` before image build.
 
 Environmental variables to configure production release:
 ##### Settings for REST endpoint:
@@ -130,7 +130,7 @@ config :maru, MongoosePush.Router,
     ]
 ```
 
-This part of configuration relates only to `REST` endpoints that `MongoosePush` exposes. Here you can set bind IP adress (option: `ip`), port and paths to you `HTTP` `TLS` certificates. You should ignore other options unless you know what you're doing or you're going to get to know by reading [maru's documentation](https://maru.readme.io/docs).
+This part of configuration relates only to `REST` endpoints that `MongoosePush` exposes. Here you can set bind IP adress (option: `ip`), port and paths to your `HTTP` `TLS` certificates. You should ignore other options unless you know what you're doing or you're going to get to know by reading [maru's documentation](https://maru.readme.io/docs).
 
 You may entirely skip the `maru` config entry to disable `REST` API and just use this project as `Elixir` library.
 
@@ -189,6 +189,20 @@ Each `APNS` pool may be configured by setting the following fields:
 
 You may entirely skip the `APNS` config entry to disable `APNS` support.
 
+#### Converting APNS files
+
+If you happen to have APNS files in `pkcs12` format (.p12 or .pfx extenstion) you need to convert them to `PEM` format which is understood by MongoosePush. Belowe you can find sample `openssl` commands which may be helpful.
+
+##### Get cert from pkcs12 file
+
+    openssl pkcs12 -in YourAPNS.p12 -out YourCERT.pem -nodes -nokeys
+
+#### Get key from pkcs12 file
+
+    openssl pkcs12 -in YourAPNS.p12 -out YourKEY.pem -nodes -nocerts
+
+
+
 ## REST API
 
 ### Swagger
@@ -205,14 +219,19 @@ As you can imagine, `{device_id}` should be replaced with device ID/Token genera
 ```json
 {
   "service": "apns",
-  "body": "notification's text body",
-  "title": "notification's title"
+  "alert":
+    {
+      "body": "notification's text body",
+      "title": "notification's title"
+    }
 }
 ```
 
 The full list of options contains the following:
 * **service** (*required*, `apns` or `fcm`) - push notifications provider to be used for this notification
 * **mode** (*optional*, `prod` (default) or `dev`) - allows for selecting named pool configured in `MongoosePush`
+* **priority** (*optional*) - Either `normal` or `high`. Those values are used without changes for FCM. For APNS however, `normal` maps to priority `5`, while `high` maps to priority `10`. Please refer to FCM / APNS documentation for more details on those values. By default `priority` is not set at all, therefore the push notification service decides which value is used by default.
+* **mutable_content** (*optional*, `true` / `false` (default)) - Only applicable to APNS. Sets "mutable-content=1" in APNS payload.
 * **topic** (*optional*, `APNS` specific) - if APNS certificate configured in `MongoosePush` allows for multiple applications, this field selects the application. Please refer to `APNS` documentation for more datails
 * **data** (*optional*) - custom JSON structure sent to the target device. For `APNS`, all keys form this stucture are merged into highest level APS message (the one that holds 'aps' key), while for `FCM` the whole `data` json stucture is sent as FCM's `data payload` along with `notification`.
 * **alert** (*optional*) - JSON stucture that if provided will send non-silent notification with the following fields:
@@ -221,6 +240,7 @@ The full list of options contains the following:
   * **click_action** (*optional*) - for `FCM` its `activity` to run when notification is clicked. For `APNS` its `category` to invoke. Please refer to Android/iOS documentation for more details about this action
   * **tag** (*optional*, `FCM` specific) - notifications aggregation key
   * **badge** (*optional*, `APNS` specific) - unread notifications count
+  * **sound** (*optional*) - sound that should be play when notification arrives. Please refer to FCM / APNS documentation for more details.
 
 Please note that either **alert** and **data** has to be provided (also can be both).
 If you only specify **alert**, the request will result in classic, simple notification.
@@ -246,3 +266,16 @@ config :elixometer, reporter: :exometer_report_graphite,
       env: Mix.env,
       metric_prefix: "mongoose_push"
 ```
+
+### Available metrics
+
+The following metrics are available:
+* `mongoose_push.${METRIC_TYPE}.push.${SERVICE}.${MODE}.error.all`
+* `mongoose_push.${METRIC_TYPE}.push.${SERVICE}.${MODE}.error.${REASON}`
+* `mongoose_push.${METRIC_TYPE}.push.${SERVICE}.${MODE}.success`
+
+Where:
+* **METRIC_TYPE** is either `timers` or `spirals`
+* **SERVICE** is either `fcm` or `apns`
+* **MODE** is either `prod` or `dev`
+* **REASON** is an arbitrary error reason term
